@@ -423,7 +423,7 @@ void Project::Load(const std::string &root) {
 }
 
 Project::Entry Project::FindEntry(const std::string &path,
-                                  bool can_be_inferred) {
+                                  bool must_exist) {
   Project::Folder *best_folder = nullptr;
   const Entry *best = nullptr;
   std::shared_lock lock(mtx);
@@ -431,7 +431,7 @@ Project::Entry Project::FindEntry(const std::string &path,
     auto it = folder.path2entry_index.find(path);
     if (it != folder.path2entry_index.end()) {
       Project::Entry &entry = folder.entries[it->second];
-      if (can_be_inferred || entry.filename == path)
+      if (!must_exist || entry.filename == path)
         return entry;
     }
   }
@@ -525,9 +525,10 @@ void Project::Index(WorkingFiles *wfiles, RequestId id) {
         if (match.Matches(entry.filename, &reason) &&
             match_i.Matches(entry.filename, &reason)) {
           bool interactive = wfiles->GetFile(entry.filename) != nullptr;
-          pipeline::Index(
-              entry.filename, entry.args,
-              interactive ? IndexMode::Normal : IndexMode::NonInteractive, id);
+          pipeline::Index(entry.filename, entry.args,
+                          interactive ? IndexMode::Normal
+                                      : IndexMode::NonInteractive,
+                          false, id);
         } else {
           LOG_V(1) << "[" << i << "/" << folder.entries.size() << "]: " << reason
                    << "; skip " << entry.filename;
@@ -540,6 +541,6 @@ void Project::Index(WorkingFiles *wfiles, RequestId id) {
   pipeline::loaded_ts = pipeline::tick;
   // Dummy request to indicate that project is loaded and
   // trigger refreshing semantic highlight for all working files.
-  pipeline::Index("", {}, IndexMode::NonInteractive);
+  pipeline::Index("", {}, IndexMode::NonInteractive, false);
 }
 } // namespace ccls
